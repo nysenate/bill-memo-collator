@@ -4,7 +4,7 @@
 $output_dir = '/data/billmemos';
 $log_dir = '/var/log/billmemos';
 $log_file = $log_dir.'/collate_pdf.log';
-$exec_script = dirname(__FILE__).'/collate_bill_memos.sh';
+$exec_script = dirname(__FILE__).'/../scripts/collate_bill_memos.sh';
 
 if (!empty($_FILES['userfiles']) && !empty($_POST['process'])) {
   /*
