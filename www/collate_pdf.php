@@ -11,18 +11,15 @@ if (!empty($_FILES['userfiles']) && !empty($_POST['process'])) {
     Do the processing here.  The loop below demonstrates how
     the files are enumerated in PHP.
   */
-  $output_files = [];
-  $messages = [];
-  $success = true;
-  $exec_out = [];   // output from the shell command as an array of lines
-  $exec_ret = 0;    // return code from the shell command
   $userfiles = $_FILES['userfiles'];
+  $results = [];
 
   if (isset($userfiles['name']) && count($userfiles['name']) > 0) {
     foreach ($userfiles['name'] as $idx => $fname) {
       if ($fname) {
         $fsize = $userfiles['size'][$idx];
         $fpath = $userfiles['tmp_name'][$idx];
+        $messages = [];
 
         // Messages for debugging.
         $messages[] = "Received file #".($idx+1).": $fname ($fsize)";
@@ -32,39 +29,48 @@ if (!empty($_FILES['userfiles']) && !empty($_POST['process'])) {
         $out_fpath = realpath($output_dir)."/$out_fname";
         $exec_str = "$exec_script \"$fpath\" --output-file \"$out_fpath\" 2>&1";
         $exec_out = [];
+        $exec_ret = 0;
 
+        // Execute the collation script.  Possible return codes:
+        // 0    = success
+        // > 0  = number of LBDC tags that were not replaced
+        // -1   = unable to generate output PDF
+        // -2   = a signal was received
         exec("$exec_str", $exec_out, $exec_ret);
 
         // Log the output from the shell script.
         $exec_out = implode("\n", $exec_out)."\n";
         file_put_contents($log_file, $exec_out, FILE_APPEND | LOCK_EX);
 
-        if ($exec_ret == 0) {
-          // Add the final processed file location to the output list.
-          $output_files[] = "/collated/$out_fname";
-          $messages[] = "File $fname processed successfully; collated file is $out_fname";
+        if ($exec_ret >= 0) {
+          $out_url = "/collated/$out_fname";
+          if ($exec_ret == 0) {
+            $messages[] = "File $fname processed successfully; collated file is $out_fname";
+          }
+          else {
+            $messages[] = "File $fname processed with $exec_ret error(s); partially collated file is $out_fname";
+            $messages[] = "Command output:\n$exec_out";
+          }
         }
         else {
+          $out_url = null;
           $messages[] = "exec() failed; error code=$exec_ret";
           $messages[] = "Command line:\n$exec_str";
           $messages[] = "Command output:\n$exec_out";
         }
+
+        $results[] = (object) [
+          'outname' => $out_fname,
+          'outpath' => $out_fpath,
+          'outurl' => $out_url,
+          'retcode' => $exec_ret,
+          'messages' => $messages
+        ];
       }
     }
   }
 
-  if (!count($output_files)) {
-    $success = false;
-    $messages[] = 'No files received.';
-  }
-
-  $result = (object) [
-    'files' => $output_files,
-    'messages' => $messages,
-    'success' => $success,
-  ];
-
-  $json = json_encode($result);
+  $json = json_encode($results);
   if ($json !== false) {
     echo $json;
     exit(0);
@@ -145,12 +151,18 @@ if (!empty($_FILES['userfiles']) && !empty($_POST['process'])) {
               complete: function (d) {
                 $form.removeClass('is-uploading');
                 $r = $('#results').html('');
-                d.responseJSON.files.forEach(function(v,i) {
-                  $r.append('<li><a href="' + v + '">' + v + '</a></li>');
-                });
-                $r.append('<h3>Messages</h3>');
-                d.responseJSON.messages.forEach(function(v,i) {
-                  $r.append('<pre>' + v + '</pre>');
+                d.responseJSON.forEach(function(v,i) {
+                  if (v.outurl) {
+                    s = (v.retcode == 0) ? 'Complete' : 'Partial';
+                    $r.append('<li><a href="'+v.outurl+'">' +v.outurl+ '</a> <b>(' +s+ ')</b></li>');
+                  }
+                  else {
+                    $r.append('<li>' + v.outname + ' was not generated due to fatal error</li>');
+                  }
+                  $r.append('<h3>Messages</h3>');
+                  v.messages.forEach(function(w,j) {
+                    $r.append('<pre>' + w + '</pre>');
+                  });
                 });
               },
               success: function (data) {

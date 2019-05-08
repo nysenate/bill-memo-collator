@@ -37,7 +37,7 @@ cleanup() {
 
 cleanup_and_exit() {
   cleanup
-  [ "$1" ] && exit $1 || exit 2
+  [ "$1" ] && exit $1 || exit -2
 }
 
 
@@ -93,7 +93,7 @@ pdftk "$srcfile" burst output "$tmpdir/page_%03d.pdf"
 
 if [ $? -ne 0 ]; then
   echo "$prog: Unable to split source PDF [$srcfile] into single-page PDFs" >&2
-  cleanup_and_exit 1
+  cleanup_and_exit -1
 fi
 
 # Iterate over the individual pages looking for LBDC placeholder tags.
@@ -141,7 +141,7 @@ if [ $? -eq 0 ]; then
   echo "Generated output file [$outfile]"
 else
   echo "$prog: $outfile: Unable to generate output file" >&2
-  cleanup_and_exit 1
+  cleanup_and_exit -1
 fi
 
 echo "Document summary:"
