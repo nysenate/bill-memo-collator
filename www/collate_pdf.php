@@ -32,23 +32,32 @@ if (!empty($_FILES['userfiles']) && !empty($_POST['process'])) {
         $exec_ret = 0;
 
         // Execute the collation script.  Possible return codes:
-        // 0    = success
-        // > 0  = number of LBDC tags that were not replaced
-        // -1   = unable to generate output PDF
-        // -2   = a signal was received
+        // 0       = success
+        // 1 to 99 = number of LBDC tags that were not replaced
+        // 100     = more than 99 LBDC tags were not replaced
+        // 101     = invalid command line argument(s)
+        // 102     = unable to find work directories or files
+        // 103     = unable to locate required PDF utils (pdfgrep/pdfinfo/pdftk)
+        // 104     = unable to split the initial PDF using pdftk
+        // 105     = unable to reassemble the PDF fragments using pdftk
+        // 128      = a signal was received
         exec("$exec_str", $exec_out, $exec_ret);
 
         // Log the output from the shell script.
         $exec_out = implode("\n", $exec_out)."\n";
         file_put_contents($log_file, $exec_out, FILE_APPEND | LOCK_EX);
 
-        if ($exec_ret >= 0) {
+        if ($exec_ret >= 0 && $exec_ret <= 100) {
           $out_url = "/collated/$out_fname";
           if ($exec_ret == 0) {
             $messages[] = "File $fname processed successfully; collated file is $out_fname";
           }
           else {
-            $messages[] = "File $fname processed with $exec_ret error(s); partially collated file is $out_fname";
+            $err_cnt_str = (string) $exec_ret;
+            if ($exec_ret == 100) {
+              $err_cnt_str = "more than 99";
+            }
+            $messages[] = "File $fname processed with $err_cnt_str error(s); partially collated file is $out_fname";
             $messages[] = "Command output:\n$exec_out";
           }
         }

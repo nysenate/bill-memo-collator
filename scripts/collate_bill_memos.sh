@@ -9,6 +9,21 @@
 # Date: 2019-03-01
 # Revised: 2019-03-06
 # Revised: 2020-07-22 - Validate MemoPDF files using pdfinfo before copying
+#                     - Stop using negative return values
+#
+# Return values:
+#   0       = success; all placeholders tags were replaced properly
+#   1 to 99 = number of placeholder tags that could not be replaced
+#   100     = more than 99 placeholder tags could not be replaced
+#   101     = invalid command line argument(s)
+#   102     = unable to find required files/directories
+#   103     = unable to locate required PDF utilities (pdfgrep, pdfinfo, pdftk)
+#   104     = pdftk failure when splitting PDF
+#   105     = pdftk failure when rebuilding PDF
+#   128     = signal received
+#
+# Return codes 0 to 100 indicate that a final PDF was created.
+# Return codes 101 and greater indicate that no final PDF was created.
 #
 
 prog=`basename $0`
@@ -38,13 +53,13 @@ cleanup() {
 
 cleanup_and_exit() {
   cleanup
-  [ "$1" ] && exit $1 || exit -2
+  [ "$1" ] && exit $1 || exit 128
 }
 
 
 if [ $# -lt 1 ]; then
   usage
-  exit 1
+  exit 101
 fi
 
 while [ $# -gt 0 ]; do
@@ -54,7 +69,7 @@ while [ $# -gt 0 ]; do
     -k|--keep*) keep_tmpdir=1 ;;
     -o|--out*) shift; outfile="$1" ;;
     -t|--tmp*) shift; tmpdir="$1" ;;
-    -*) echo "$prog: $1: Unknown option" >&2; usage; exit 1 ;;
+    -*) echo "$prog: $1: Unknown option" >&2; usage; exit 101 ;;
     *) srcfile="$1" ;;
   esac
   shift
@@ -62,13 +77,13 @@ done
 
 if [ ! "$srcfile" ]; then
   echo "$prog: LBDC source file must be specified" >&2
-  exit 1
+  exit 102
 elif [ ! -r "$srcfile" ]; then
   echo "$prog: $srcfile: LBDC source file not found" >&2
-  exit 1
+  exit 102
 elif [ ! -d "$memodir" ]; then
   echo "$prog: $memodir: PDF memo directory not found" >&2
-  exit 1
+  exit 102
 fi
 
 # If no output file was specified, generate one based on the source filename.
@@ -79,14 +94,14 @@ fi
 # Confirm that "pdfgrep", "pdfinfo", and "pdftk" are all available.
 if ! type -p pdfgrep pdfinfo pdftk >/dev/null; then
   echo "$prog: "pdfgrep", "pdfinfo", and "pdftk" must all be available" >&2
-  exit 1
+  exit 103
 fi
 
 # Trap various signals to abort cleanly.
 trap cleanup_and_exit 1 2 3 6 15
 
 # Create the temporary work directory
-mkdir -p "$tmpdir" || exit 1
+mkdir -p "$tmpdir" || exit 102
 
 # Split the source PDF document into multiple single-page documents.
 echo "Splitting [$srcfile] into individual single-page PDF files"
@@ -94,7 +109,7 @@ pdftk "$srcfile" burst output "$tmpdir/page_%03d.pdf"
 
 if [ $? -ne 0 ]; then
   echo "$prog: Unable to split source PDF [$srcfile] into single-page PDFs" >&2
-  cleanup_and_exit -1
+  cleanup_and_exit 104
 fi
 
 # Iterate over the individual pages looking for LBDC placeholder tags.
@@ -124,6 +139,7 @@ for f in "$tmpdir"/page_???.pdf; do
           cp -v "$memofile" "$f"
         else
           echo "$prog: File [$memofile] is not a valid PDF file; [$fname] will not be replaced" >&2
+          let err_count++
         fi
       else
         echo "$prog: Unable to find memo file [$memofile]; [$fname] will not be replaced" >&2
@@ -148,12 +164,16 @@ if [ $? -eq 0 ]; then
   echo "Generated output file [$outfile]"
 else
   echo "$prog: $outfile: Unable to generate output file" >&2
-  cleanup_and_exit -1
+  cleanup_and_exit 105
 fi
 
 echo "Document summary:"
 echo "Page count:  $page_count"
 echo "Memo count:  $memo_count"
 echo "Error count: $err_count"
+
+if [ $err_count -gt 99 ]; then
+  err_count=100
+fi
 
 cleanup_and_exit $err_count
