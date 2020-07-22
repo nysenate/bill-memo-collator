@@ -161,7 +161,7 @@ if (!empty($_FILES['userfiles']) && !empty($_POST['process'])) {
                   }
                   $r.append('<h3>Messages</h3>');
                   v.messages.forEach(function(w,j) {
-                    $r.append('<pre>' + w + '</pre>');
+                    $r.append($('<pre />').text(w));
                   });
                 });
               },
@@ -258,7 +258,7 @@ if (!empty($_FILES['userfiles']) && !empty($_POST['process'])) {
     <div class="box__error">Error! <span></span>.</div>
   </form>
   <h1>RESULTS:</h1>
-  <pre id="results"></pre>
+  <div id="results"></div>
 </div>
 </body>
 </html>

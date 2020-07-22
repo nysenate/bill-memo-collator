@@ -8,6 +8,7 @@
 # Organization: New York State Senate
 # Date: 2019-03-01
 # Revised: 2019-03-06
+# Revised: 2020-07-22 - Validate MemoPDF files using pdfinfo before copying
 #
 
 prog=`basename $0`
@@ -75,9 +76,9 @@ if [ ! "$outfile" ]; then
   outfile=`basename "$srcfile" .pdf`.collated.pdf
 fi
 
-# Confirm that "pdfgrep" and "pdftk" are both available.
-if ! type -p pdfgrep pdftk >/dev/null; then
-  echo "$prog: Both "pdfgrep" and "pdftk" must be available" >&2
+# Confirm that "pdfgrep", "pdfinfo", and "pdftk" are all available.
+if ! type -p pdfgrep pdfinfo pdftk >/dev/null; then
+  echo "$prog: "pdfgrep", "pdfinfo", and "pdftk" must all be available" >&2
   exit 1
 fi
 
@@ -116,8 +117,14 @@ for f in "$tmpdir"/page_???.pdf; do
     if [ "$memofname" ]; then
       echo "Attempting to replace [$fname] with memo file [$memofname]"
       memofile="$memodir/$memofname"
+      # Verify that memo file is found and is readable.
       if [ -f "$memofile" -a -r "$memofile" ]; then
-        cp -v "$memofile" "$f"
+        # Verify that memo file is a valid PDF file.
+        if pdfinfo "$memofile" >/dev/null; then
+          cp -v "$memofile" "$f"
+        else
+          echo "$prog: File [$memofile] is not a valid PDF file; [$fname] will not be replaced" >&2
+        fi
       else
         echo "$prog: Unable to find memo file [$memofile]; [$fname] will not be replaced" >&2
         let err_count++

@@ -12,4 +12,5 @@ When the bill summary PDF file is processed by the bill memo collator, all of th
 
 The script that performs the search-and-replace process depends on the following utilites being available on the host system:
 * pdfgrep, v2.1.2
+* pdfinfo, v0.45
 * pdftk, v2.02
