@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # collate_bill_memos.sh - Given an input PDF with XML placeholder tags,
 #   transform the PDF by replacing the pages containing XML tags with
@@ -10,6 +10,7 @@
 # Revised: 2019-03-06
 # Revised: 2020-07-22 - Validate MemoPDF files using pdfinfo before copying
 #                     - Stop using negative return values
+# Revised: 2021-01-10 - Automatically calculate the PDF memo directory
 #
 # Return values:
 #   0       = success; all placeholders tags were replaced properly
@@ -27,11 +28,19 @@
 #
 
 prog=`basename $0`
-memodir="/minjdriv/MEMOS ON FILE/Memo PDFs/2019 - 20 Memos on File"
+memo_base_dir="/minjdriv/MEMOS ON FILE/Memo PDFs"
 tmpdir="/tmp/collate_bill_memos.tmp.d"
 keep_tmpdir=0
 srcfile=
 outfile=
+
+sess_year=`date +%Y`
+is_odd=`expr $sess_year % 2`
+[ $is_odd -ne 1 ] && sess_year=`expr $sess_year - 1`
+next_year=`expr $sess_year + 1`
+next_year_YY=${next_year: -2}
+
+memodir="$memo_base_dir/$sess_year-$next_year_YY Memos on File"
 
 if [ "$OSTYPE" = "cygwin" ]; then
   tmpdir="C:/cygwin$tmpdir"
